@@ -1,0 +1,192 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>PrivateCloud.Api</name>
+    </assembly>
+    <members>
+        <member name="T:PrivateCloud.Api.Controllers.BucketController">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.#ctor(Microsoft.Extensions.Logging.ILogger{PrivateCloud.Api.Controllers.BucketController})">
+            <summary>
+            
+            </summary>
+            <param name="logger"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.CreateBucket(System.String,PrivateCloud.Api.Models.CreateBucketRequest)">
+            <summary>
+            Creates a new S3 bucket.
+            To create a bucket, you must register with Amazon S3 and have a valid AWS Access Key ID to authenticate requests. Anonymous requests are never allowed to create buckets. By creating the bucket, you become the bucket owner. 
+            </summary>
+            <param name="bucket"></param>
+            <param name="request"></param>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.DeleteBucket(System.String)">
+            <summary>
+            Deletes the S3 bucket.
+            All objects (including all object versions and delete markers) in the bucket must be deleted before the bucket itself can be deleted. 
+            </summary>
+            <param name="bucket"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.DeleteObject(System.String,System.String)">
+            <summary>
+            Removes the null version (if there is one) of an object and inserts a delete marker, which becomes the latest version of the object.
+            If there isn't a null version, Amazon S3 does not remove any objects. 
+            </summary>
+            <param name="bucket"></param>
+            <param name="key"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.GetObject(System.String,System.String)">
+            <summary>
+            Retrieves objects from Amazon S3.
+            To use GET, you must have READ access to the object. If you grant READ access to the anonymous user, you can return the object without using an authorization header. 
+            </summary>
+            <param name="bucket"></param>
+            <param name="key"></param>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.HeadBucket(System.String)">
+            <summary>
+            This operation is useful to determine if a bucket exists and you have permission to access it.
+            The operation returns a 200 OK if the bucket exists and you have permission to access it. Otherwise, the operation might return responses such as 404 Not Found and 403 Forbidden. 
+            </summary>
+            <param name="bucket"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.HeadObject(System.String,System.String)">
+            <summary>
+            The HEAD operation retrieves metadata from an object without returning the object itself.
+            This operation is useful if you're only interested in an object's metadata. To use HEAD, you must have READ access to the object. 
+            </summary>
+            <param name="bucket"></param>
+            <param name="key"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.ListBuckets">
+            <summary>
+            Returns a list of all buckets owned by the authenticated sender of the request.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.ListObjects(System.String)">
+            <summary>
+            Returns some or all (up to 1,000) of the objects in a bucket.
+            You can use the request parameters as selection criteria to return a subset of the objects in a bucket. A 200 OK response can contain valid or invalid XML. Make sure to design your application to parse the contents of the response and handle it appropriately. 
+            </summary>
+            <param name="bucket"></param>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.BucketController.PutObject(System.String,System.String,PrivateCloud.Api.Models.PutObjectRequest)">
+            <summary>
+            Adds an object to a bucket.
+            </summary>
+            <param name="bucket"></param>
+            <param name="key"></param>
+            <param name="request"></param>
+        </member>
+        <member name="T:PrivateCloud.Api.Controllers.UsersController">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.UsersController.#ctor(PrivateCloud.Practises.Executables.ICommand{PrivateCloud.Application.Users.Commands.AuthenticateUser.AuthenticateUserModel,PrivateCloud.Application.Users.Commands.AuthenticateUser.AuthenticateUserResult},PrivateCloud.Practises.Executables.ICommand{PrivateCloud.Application.Users.Commands.CreateUser.CreateUserModel,PrivateCloud.Application.Users.Commands.CreateUser.CreateUserResult},PrivateCloud.Practises.Executables.ICommand{PrivateCloud.Application.Users.Commands.DeleteUser.DeleteUserModel},PrivateCloud.Practises.Executables.IQuery{PrivateCloud.Application.Users.Queries.GetAllUsers.GetAllUsersModel,PrivateCloud.Application.Users.Queries.GetAllUsers.GetAllUsersResult},PrivateCloud.Practises.Executables.IQuery{PrivateCloud.Application.Users.Queries.GetUser.GetUserModel,PrivateCloud.Application.Users.Queries.GetUser.GetUserResult})">
+            <summary>
+            
+            </summary>
+            <param name="authenticateCommand"></param>
+            <param name="createUserCommand"></param>
+            <param name="deleteUserCommand"></param>
+            <param name="getAllUsersQuery"></param>
+            <param name="getUserQuery"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.UsersController.Authenticate(PrivateCloud.Api.Models.AuthenticateRequest)">
+            <summary>
+            Authenticate a user and return a token
+            </summary>
+            <param name="model"></param>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.UsersController.Register(PrivateCloud.Api.Models.RegisterUserRequest)">
+            <summary>
+            Register a new user
+            </summary>
+            <param name="model"></param>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.UsersController.Delete(System.Guid,System.String)">
+            <summary>
+            Delete user by Id
+            </summary>
+            <param name="id"></param>
+            <param name="password"></param>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.UsersController.GetAll">
+            <summary>
+            Get all users
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:PrivateCloud.Api.Controllers.UsersController.GetById(System.Guid)">
+            <summary>
+            
+            </summary>
+            <param name="id"></param>
+            <returns></returns>
+        </member>
+        <member name="T:PrivateCloud.Api.Helpers.AppSettings">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="T:PrivateCloud.Api.Services.JwtTokenService">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:PrivateCloud.Api.Services.JwtTokenService.#ctor(Microsoft.Extensions.Options.IOptions{PrivateCloud.Api.Helpers.AppSettings})">
+            <summary>
+            
+            </summary>
+            <param name="appSettings"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Services.JwtTokenService.GenerateToken(System.Guid,System.String)">
+            <summary>
+            
+            </summary>
+            <param name="userId"></param>
+            <param name="userRole"></param>
+            <returns></returns>
+        </member>
+        <member name="T:PrivateCloud.Api.Startup">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:PrivateCloud.Api.Startup.#ctor(Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            
+            </summary>
+            <param name="configuration"></param>
+        </member>
+        <member name="P:PrivateCloud.Api.Startup.Configuration">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:PrivateCloud.Api.Startup.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            This method gets called by the runtime. Use this method to add services to the container.
+            </summary>
+            <param name="services"></param>
+        </member>
+        <member name="M:PrivateCloud.Api.Startup.Configure(Microsoft.AspNetCore.Builder.IApplicationBuilder,Microsoft.AspNetCore.Hosting.IWebHostEnvironment)">
+            <summary>
+            This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+            </summary>
+            <param name="app"></param>
+            <param name="env"></param>
+        </member>
+    </members>
+</doc>

@@ -1,0 +1,502 @@
+﻿<#@ template debug="false" hostspecific="true" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="EnvDTE" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+<#@ import namespace="System.CodeDom.Compiler" #>
+<#@ import namespace="EnvDTE" #>
+<#@ output extension=".cs" #>
+<#
+    IEnumerable<string> lines = Enumerable.Empty<string>();
+    string projectPath = Host.ResolveAssemblyReference("$(ProjectDir)");
+
+    string filename = Host.ResolvePath("Application.md");
+
+    if (!File.Exists(filename))
+    {
+        WriteLine(Environment.NewLine + "// Application.md not found");
+    }
+    else
+    {
+        lines = File.ReadAllLines(filename);
+    }
+
+    EnvDTE.DTE dte = (EnvDTE.DTE) ((IServiceProvider)Host)
+        .GetService(typeof(EnvDTE.DTE));
+
+    Project project = null;
+
+    foreach(Project p in dte.Solution.Projects) 
+    {
+        if (string.IsNullOrWhiteSpace(p.FullName))
+        {
+            continue;
+        }
+
+        string directory = Path.GetDirectoryName(p.FullName);
+        if(Host.TemplateFile.Contains(directory))
+        {
+            project = p;
+            break;
+        }
+    }
+
+    string activeDomain = null;
+    string activeType = null;
+    string activeExecutable = null;
+    string activePropertyType = null;
+
+    Dictionary<string, Tuple<Dictionary<string, Tuple<List<string>, List<string>>>, Dictionary<string, Tuple<List<string>, List<string>>>>> applicationExecutables 
+        = new Dictionary<string, Tuple<Dictionary<string, Tuple<List<string>, List<string>>>, Dictionary<string, Tuple<List<string>, List<string>>>>>();
+
+    Dictionary<string, Tuple<Dictionary<string, List<string>>, Dictionary<string, List<string>>>> domainExecutableComments 
+        = new Dictionary<string, Tuple<Dictionary<string, List<string>>, Dictionary<string, List<string>>>>();
+
+    Regex propertyRegex = new Regex(@"\* \`\`(?<Type>[\w\.\[\]\<\>]*)\`\` (?<Name>[\w]* ?\!?)");
+
+    foreach (var line in lines)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            continue;
+        }
+
+        if (line.Trim().StartsWith("//"))
+        {
+            continue;
+        }
+
+        if (line.Trim().StartsWith("* "))
+        {
+            if (string.IsNullOrWhiteSpace(activeDomain))
+            {
+                continue;
+            }
+
+            if (activeType != "Command" && activeType != "Query")
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(activeExecutable))
+            {
+                continue;
+            }
+
+            Match match = propertyRegex.Match(line.Trim());
+
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var property = string.Format("{0} {1}", match.Groups["Type"].Value, match.Groups["Name"].Value);
+
+            Tuple<Dictionary<string,Tuple<List<string>,List<string>>>, Dictionary<string,Tuple<List<string>,List<string>>>> t = applicationExecutables[activeDomain];
+
+            if (activeType == "Command")
+            {
+                if (activePropertyType == "input")
+                {
+                    t.Item1[activeExecutable].Item1.Add(property);
+                }
+                else
+                {
+                    t.Item1[activeExecutable].Item2.Add(property);
+                }
+            }
+            else if (activeType == "Query")
+            {
+                if (activePropertyType == "input")
+                {
+                    t.Item2[activeExecutable].Item1.Add(property);
+                }
+                else
+                {
+                    t.Item2[activeExecutable].Item2.Add(property);
+                }
+            }
+        }
+        else if (line.Trim().StartsWith("##### "))
+        {
+            if (line.ToLowerInvariant().Contains("input"))
+            {
+                activePropertyType = "input";
+            }
+            else if (line.ToLowerInvariant().Contains("output"))
+            {
+                activePropertyType = "output";
+            }
+        }
+        else if (line.Trim().StartsWith("#### "))
+        {
+            if (string.IsNullOrWhiteSpace(activeDomain))
+            {
+                continue;
+            }
+
+            if (activeType != "Command" && activeType != "Query")
+            {
+                continue;
+            }
+
+            activeExecutable = line.Replace("####", "").Trim();
+
+            Tuple<Dictionary<string,Tuple<List<string>,List<string>>>, Dictionary<string,Tuple<List<string>,List<string>>>> t = applicationExecutables[activeDomain];
+            if (activeType == "Command")
+            {
+                if(!t.Item1.ContainsKey(activeExecutable))
+                {
+                    t.Item1.Add(activeExecutable, new Tuple<List<string>,List<string>>(new List<string>(), new List<string>()));
+                }
+            }
+            else if (activeType == "Query")
+            {
+                if(!t.Item2.ContainsKey(activeExecutable))
+                {
+                    t.Item2.Add(activeExecutable, new Tuple<List<string>,List<string>>(new List<string>(), new List<string>()));
+                }
+            }
+        }
+        else if (line.Trim().StartsWith("### "))
+        {
+            if (string.IsNullOrWhiteSpace(activeDomain))
+            {
+                continue;
+            }
+
+            var type = line.Replace("###","").Trim();
+
+            if (type == "Command" || type == "Commands")
+            {
+                activeType = "Command";
+            }
+            else if (type == "Query" || type == "Queries")
+            {
+                activeType = "Query";
+            }
+            else
+            {
+                activeType = "error";
+            }
+        }
+        else if (line.Trim().StartsWith("## "))
+        {
+            activeDomain = line.Replace("##", "").Trim();
+        
+            if (!applicationExecutables.ContainsKey(activeDomain))
+            {
+                var newDomain = new Tuple<
+                    Dictionary<string, Tuple<List<string>, List<string>>>,
+                    Dictionary<string, Tuple<List<string>, List<string>>>>(
+                    new Dictionary<string, Tuple<List<string>, List<string>>>(),
+                    new Dictionary<string, Tuple<List<string>, List<string>>>()
+                    );
+                applicationExecutables.Add(activeDomain, newDomain);
+            }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(activeDomain))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(activeExecutable))
+            {
+                continue;
+            }
+
+            if (!domainExecutableComments.ContainsKey(activeDomain))
+            {
+                var model = new Tuple<Dictionary<string, List<string>>, Dictionary<string, List<string>>>(
+                    new Dictionary<string, List<string>>(),
+                    new Dictionary<string, List<string>>());
+
+                domainExecutableComments.Add(activeDomain, model);
+            }
+
+            Tuple<Dictionary<string, List<string>>, Dictionary<string, List<string>>> t = domainExecutableComments[activeDomain];
+            if (activeType == "Command")
+            {
+                if (!t.Item1.ContainsKey(activeExecutable))
+                {
+                    t.Item1.Add(activeExecutable, new List<string>());
+                }
+
+                t.Item1[activeExecutable].Add(line.Trim());
+            }
+            else if (activeType == "Query")
+            {
+                if (!t.Item2.ContainsKey(activeExecutable))
+                {
+                    t.Item2.Add(activeExecutable, new List<string>());
+                }
+
+                t.Item2[activeExecutable].Add(line.Trim());
+            }
+        }
+    }
+
+    if (applicationExecutables.Keys.Any()){#>
+using PrivateCloud.Practises.Executables;
+using PrivateCloud.Practises.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+<#
+    }
+
+    string domainNamespaceRoot= new DirectoryInfo(projectPath).Name;
+
+    if (domainNamespaceRoot.EndsWith(".Application"))
+    {
+        domainNamespaceRoot=domainNamespaceRoot.Replace(".Application", ".Domain");
+    }
+    else
+    {
+        domainNamespaceRoot += ".Domain";
+    }
+
+    foreach (var domain in applicationExecutables.Keys)
+    {
+        WriteLine("using {0}.{1};", domainNamespaceRoot, domain);
+    }
+
+    WriteLine("" );
+
+    string namespaceRoot= new DirectoryInfo(projectPath).Name;
+    if (!namespaceRoot.EndsWith(".Application"))
+    {
+        namespaceRoot += ".Application";
+    }
+
+    foreach (var domain in applicationExecutables.Keys)
+    {
+        // Commands
+        foreach (var exe in applicationExecutables[domain].Item1.Keys)
+        {
+            WriteLine("namespace {0}.{1}.Commands.{2}", namespaceRoot, domain, exe);
+            WriteLine("{");
+
+            var inputProperties = applicationExecutables[domain].Item1[exe].Item1;
+            var outputProperties = applicationExecutables[domain].Item1[exe].Item2;
+
+            WriteLine("    public partial class {0}Model", exe);
+            WriteLine("    {");
+            foreach (var property in inputProperties)
+            {
+                if (property.Trim().EndsWith("!"))
+                {
+                    WriteLine("        [Required]");
+                }
+                WriteLine("        public {0} {{ get; set; }}", property.Replace("!", "").Trim());
+            }
+            WriteLine("    }");
+
+            if (outputProperties.Any())
+            {
+                WriteLine("");
+
+                WriteLine("    public partial class {0}Result", exe);
+                WriteLine("    {");
+                foreach (var property in outputProperties)
+                {
+                    if (property.Trim().EndsWith("!"))
+                    {
+                        WriteLine("        [Required]");
+                    }
+                    WriteLine("        public {0} {{ get; set; }}", property.Replace("!", "").Trim());
+                }
+                WriteLine("    }");
+            }
+
+            WriteLine("");
+
+            WriteLine("    public partial class {0}Command :", exe);
+            if (outputProperties.Any())
+            {
+                WriteLine("        AbstractCommand<{0}Model, {0}Result>", exe);
+            }
+            else
+            {
+                WriteLine("        AbstractCommand<{0}Model>", exe);
+            }
+            WriteLine("    {");
+            WriteLine("        public ILogger Logger { get; set; } = new NullLogger();");
+            WriteLine("    }");
+
+            WriteLine("}");
+            WriteLine("");
+
+            var implementationFile = new FileInfo(Path.Combine(projectPath,domain,"Commands", exe, exe) + "Command.cs");
+            if (!implementationFile.Directory.Exists)
+            {
+                implementationFile.Directory.Create();
+            }
+            if (!implementationFile.Exists)
+            {
+                var sb = new StringBuilder();
+                sb.AppendFormat("namespace {0}.{1}.Commands.{2}{3}", namespaceRoot, domain, exe, Environment.NewLine);
+                sb.AppendLine("{");
+                
+                if (domainExecutableComments.ContainsKey(domain) && domainExecutableComments[domain].Item1.ContainsKey(exe))
+                {
+                    sb.AppendLine("    /// <summary>");
+                    foreach (var comment in domainExecutableComments[domain].Item1[exe])
+                    {
+                        sb.AppendFormat("    /// {0}{1}", comment, Environment.NewLine);
+                    }
+                    sb.AppendLine("    /// </summary>");
+                }
+
+                sb.AppendFormat("    public partial class {0}Command{1}", exe, Environment.NewLine);
+                sb.AppendLine("    {");
+                if (outputProperties.Any())
+                {
+                    sb.AppendFormat("        protected override {0}Result InternalExecute({1}", exe, Environment.NewLine);
+                }
+                else
+                {
+                    sb.AppendFormat("        protected override void InternalExecute({0}", Environment.NewLine);
+                }
+                sb.AppendFormat("            {0}Model model){1}", exe, Environment.NewLine);
+                sb.AppendLine("        {");
+                sb.AppendLine("            throw new System.NotImplementedException();");
+                sb.AppendLine("        }");
+                sb.AppendLine("    }");
+                sb.AppendLine("}");
+                File.WriteAllText(implementationFile.FullName, sb.ToString());
+            }
+
+            if (project != null)
+            {
+                project.ProjectItems.AddFromFile(implementationFile.FullName);
+            }
+        }
+
+        // Queries
+        foreach (var exe in applicationExecutables[domain].Item2.Keys)
+        {
+            WriteLine("namespace {0}.{1}.Queries.{2}", namespaceRoot, domain, exe);
+            WriteLine("{");
+
+            var inputProperties = applicationExecutables[domain].Item2[exe].Item1;
+            var outputProperties = applicationExecutables[domain].Item2[exe].Item2;
+
+            WriteLine("    public partial class {0}Model", exe);
+            WriteLine("    {");
+            foreach (var property in inputProperties)
+            {
+                if (property.Trim().EndsWith("!"))
+                {
+                    WriteLine("        [Required]");
+                }
+                WriteLine("        public {0} {{ get; set; }}", property.Replace("!", "").Trim());
+            }
+            WriteLine("    }");
+            WriteLine("");
+
+            WriteLine("   public partial class {0}Result", exe);
+            WriteLine("    {");
+            foreach (var property in outputProperties)
+            {
+                if (property.Trim().EndsWith("!"))
+                {
+                    WriteLine("        [Required]");
+                }
+                WriteLine("        public {0} {{ get; set; }}", property.Replace("!", "").Trim());
+            }
+            WriteLine("    }");
+            WriteLine("");
+
+            WriteLine("    public partial class {0}Query :", exe);
+            WriteLine("        AbstractQuery<{0}Model, {0}Result>", exe);
+            WriteLine("    {");
+            WriteLine("        public ILogger Logger { get; set; } = new NullLogger();");
+            WriteLine("    }");
+
+            WriteLine("}");
+            WriteLine("");
+
+            var implementationFile = new FileInfo(Path.Combine(projectPath, domain, "Queries", exe, exe) + "Query.cs");
+            if (!implementationFile.Directory.Exists)
+            {
+                implementationFile.Directory.Create();
+            }
+            if (!implementationFile.Exists)
+            {
+                var sb = new StringBuilder();
+                sb.AppendFormat("namespace {0}.{1}.Queries.{2}{3}", namespaceRoot, domain, exe, Environment.NewLine);
+                sb.AppendLine("{");
+
+                if (domainExecutableComments.ContainsKey(domain) && domainExecutableComments[domain].Item2.ContainsKey(exe))
+                {
+                    sb.AppendLine("    /// <summary>");
+                    foreach (var comment in domainExecutableComments[domain].Item2[exe])
+                    {
+                        sb.AppendFormat("    /// {0}{1}", comment, Environment.NewLine);
+                    }
+                    sb.AppendLine("    /// </summary>");
+                }
+
+                sb.AppendFormat("    public partial class {0}Query{1}", exe, Environment.NewLine);
+                sb.AppendLine("    {");
+                sb.AppendFormat("        protected override {0}Result InternalExecute({1}", exe, Environment.NewLine);
+                sb.AppendFormat("            {0}Model model){1}", exe, Environment.NewLine);
+                sb.AppendLine("        {");
+                sb.AppendLine("            throw new System.NotImplementedException();");
+                sb.AppendLine("        }");
+                sb.AppendLine("    }");
+                sb.AppendLine("}");
+                File.WriteAllText(implementationFile.FullName, sb.ToString());
+            }
+
+            if (project != null)
+            {
+                project.ProjectItems.AddFromFile(implementationFile.FullName);
+            }
+        }
+    }
+    
+    WriteLine("// Register types");
+    WriteLine("namespace {0}", namespaceRoot);
+    WriteLine("{");
+    WriteLine("    public static class ArchitectureConfig", namespaceRoot);
+    WriteLine("    {");
+    WriteLine("        public static IServiceCollection AddApplicationUseCases(");
+    WriteLine("            this IServiceCollection services)", namespaceRoot);
+    WriteLine("        {");
+    foreach (var domain in applicationExecutables.Keys)
+    {
+        foreach (var exe in applicationExecutables[domain].Item1.Keys)
+        {
+            var outputProperties = applicationExecutables[domain].Item1[exe].Item2;
+            if (outputProperties.Any())
+            {
+                WriteLine("            services.AddScoped<ICommand<{0}.Commands.{1}.{1}Model, {0}.Commands.{1}.{1}Result>, {0}.Commands.{1}.{1}Command>();", domain, exe);
+            }
+            else
+            {
+                WriteLine("            services.AddScoped<ICommand<{0}.Commands.{1}.{1}Model>, {0}.Commands.{1}.{1}Command>();", domain, exe);
+            }
+        }
+        foreach (var exe in applicationExecutables[domain].Item2.Keys)
+        {
+            WriteLine("            services.AddScoped<IQuery<{0}.Queries.{1}.{1}Model, {0}.Queries.{1}.{1}Result>, {0}.Queries.{1}.{1}Query>();", domain, exe);
+        }
+    }
+
+    WriteLine("");
+    WriteLine("            return services;");
+    WriteLine("        }");
+    WriteLine("    }");
+    WriteLine("}");
+    WriteLine("");
+#>

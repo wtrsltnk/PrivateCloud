@@ -1,0 +1,149 @@
+﻿<#@ template debug="false" hostspecific="true" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+<#@ output extension=".cs" #><#
+    IEnumerable<string> lines = Enumerable.Empty<string>();
+    string projectPath = Host.ResolveAssemblyReference("$(ProjectDir)");
+
+    try
+    {
+        string filename = Host.ResolvePath("Domain.md");
+
+        if (!File.Exists(filename))
+        {
+            throw new FileNotFoundException("Domain.md not found", filename);
+        }
+
+            lines = File.ReadAllLines(filename);
+    }
+    catch (Exception ex)
+    {
+        WriteLine(Environment.NewLine + "// " + ex.Message);
+    }
+
+    string activeDomain = null;
+    string activeModel = null;
+
+    Dictionary<string, Dictionary<string,List<string>>> domainModels
+        = new Dictionary<string, Dictionary<string,List<string>>>();
+
+    Regex propertyRegex = new Regex(@"\* \`\`(?<Type>[\w\.\[\]\<\>]*)\`\` (?<Name>[\w]*)");
+
+    foreach (var line in lines)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            continue;
+        }
+
+        if (line.Trim().StartsWith("//"))
+        {
+            continue;
+        }
+
+        if (line.StartsWith("* "))
+        {
+            if (string.IsNullOrWhiteSpace(activeDomain))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(activeModel))
+            {
+                continue;
+            }
+
+            if (!domainModels.ContainsKey(activeDomain))
+            {
+                continue;
+            }
+
+            Dictionary<string,List<string>> domain = domainModels[activeDomain];
+
+            if (!domain.ContainsKey(activeModel))
+            {
+                continue;
+            }
+
+            Match match = propertyRegex.Match(line.Trim());
+
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            domain[activeModel].Add(string.Format("{0} {1}", match.Groups["Type"].Value, match.Groups["Name"].Value));
+        }
+        else if (line.StartsWith("### "))
+        {
+            if (string.IsNullOrWhiteSpace(activeDomain))
+            {
+                continue;
+            }
+
+            if (!domainModels.ContainsKey(activeDomain))
+            {
+                continue;
+            }
+
+            activeModel = line.Replace("###", "").Trim();
+
+            domainModels[activeDomain].Add(activeModel, new List<string>());
+        }
+        else if (line.StartsWith("## "))
+        {
+            activeDomain = line.Replace("##", "").Trim();
+        
+            if (!domainModels.ContainsKey(activeDomain))
+            {
+                domainModels.Add(activeDomain, new Dictionary<string,List<string>>());
+            }
+        }
+    }
+
+    if (domainModels.Keys.Any()){#>
+using System;
+using System.Linq;
+using System.Collections.Generic;
+
+<#    }
+
+    string namespaceRoot= new DirectoryInfo(projectPath).Name;
+    if (!namespaceRoot.EndsWith(".Domain"))
+    {
+        namespaceRoot += ".Domain";
+    }
+
+    foreach (var domain in domainModels.Keys)
+    {
+        WriteLine("namespace {0}.{1}", namespaceRoot, domain);
+        WriteLine("{");
+
+        int i = 0;
+        foreach (var model in domainModels[domain].Keys)
+        {
+            if (i++ > 0)
+            {
+                WriteLine("");
+            }
+
+            WriteLine("    public partial class {0} :", model);
+            WriteLine("        IEntity");
+            WriteLine("    {");
+
+            foreach (var property in domainModels[domain][model])
+            {
+                WriteLine("        public {0} {{ get; set; }}", property);
+            }
+
+            WriteLine("    }");
+        }
+
+        WriteLine("}");
+        WriteLine("");
+    }
+#>
